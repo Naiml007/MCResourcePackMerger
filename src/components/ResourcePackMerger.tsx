@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Upload, ArrowRight, Download, Loader2 } from 'lucide-react'
+import { ArrowRight, Download, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -32,13 +32,14 @@ export default function ResourcePackMerger() {
   const mergeFiles = async (rp1File: JSZip.JSZipObject, rp2File: JSZip.JSZipObject, result: JSZip, relativePath: string, fileName: string) => {
     const [content1, content2] = await Promise.all([rp1File.async('string'), rp2File.async('string')])
     
-    let rp1Parsed = {}
-    let rp2Parsed = {}
+    let rp1Parsed: Record<string, unknown> = {}
+    let rp2Parsed: Record<string, unknown> = {}
 
     try {
       rp1Parsed = JSON.parse(content1)
     } catch (error) {
       addLog(`Error reading file from RP1: ${fileName}`)
+      console.error('Error parsing RP1:', error)
       return
     }
 
@@ -46,19 +47,18 @@ export default function ResourcePackMerger() {
       rp2Parsed = JSON.parse(content2)
     } catch (error) {
       addLog(`Error reading file from RP2: ${fileName}`)
+      console.error('Error parsing RP2:', error)
       return
     }
 
     if (fileName === 'assets/minecraft/sounds.json') {
-      for (let key in rp2Parsed) {
+      for (const key in rp2Parsed) {
         if (rp2Parsed.hasOwnProperty(key) && !rp1Parsed.hasOwnProperty(key)) {
-          rp1Parsed[key] = rp2Parsed[key]
+          (rp1Parsed as Record<string, unknown>)[key] = rp2Parsed[key]
         }
       }
     } else if (rp2Parsed.hasOwnProperty('overrides') && rp1Parsed.hasOwnProperty('overrides')) {
-      // Implement the overrides merging logic here
-      // This is a simplified version, you may need to add more complex logic as in the original script
-      rp1Parsed['overrides'] = [...rp1Parsed['overrides'], ...rp2Parsed['overrides']]
+      (rp1Parsed['overrides'] as unknown[]).push(...(rp2Parsed['overrides'] as unknown[]))
     }
 
     const resultFile = JSON.stringify(rp1Parsed, null, 2)
@@ -117,8 +117,12 @@ export default function ResourcePackMerger() {
 
       mergedZipRef.current = mergedContent
       addLog('Merge complete!')
-    } catch (error) {
-      addLog(`Error during merge: ${error.message}`)
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        addLog(`Error during merge: ${error.message}`)
+      } else {
+        addLog('An unknown error occurred during the merge process')
+      }
     } finally {
       setMerging(false)
     }
