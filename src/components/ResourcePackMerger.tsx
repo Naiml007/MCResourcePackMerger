@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { ArrowRight, Download, Loader2 } from 'lucide-react'
+import { useState, useRef, useCallback } from 'react'
+import { ArrowRight, Download, Loader2, Upload, Github } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import JSZip from 'jszip'
 
 export default function ResourcePackMerger() {
@@ -15,19 +14,38 @@ export default function ResourcePackMerger() {
   const [merging, setMerging] = useState(false)
   const [log, setLog] = useState<string[]>([])
   const mergedZipRef = useRef<Blob | null>(null)
+  const fileInputRef1 = useRef<HTMLInputElement>(null)
+  const fileInputRef2 = useRef<HTMLInputElement>(null)
 
   const addLog = (message: string) => {
     setLog(prev => [...prev, message])
   }
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, fileNumber: number) => {
-    const file = event.target.files?.[0]
+  const handleFileChange = (file: File | null, fileNumber: number) => {
     if (file) {
-      if (fileNumber === 1) setFile1(file)
-      else setFile2(file)
-      addLog(`Selected ${file.name}`)
+      if (file.name.endsWith('.zip') || file.type === 'application/zip' || file.type === 'application/x-zip-compressed') {
+        if (fileNumber === 1) setFile1(file)
+        else setFile2(file)
+        addLog(`Selected ${file.name}`)
+      } else {
+        addLog(`Invalid file type for ${file.name}. Please select a .zip file.`)
+      }
     }
   }
+
+  const onDrop = useCallback((event: React.DragEvent<HTMLDivElement>, fileNumber: number) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const file = event.dataTransfer.files[0]
+    if (file) {
+      handleFileChange(file, fileNumber)
+    }
+  }, [])
+
+  const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }, [])
 
   const mergeFiles = async (rp1File: JSZip.JSZipObject, rp2File: JSZip.JSZipObject, result: JSZip, relativePath: string, fileName: string) => {
     const [content1, content2] = await Promise.all([rp1File.async('string'), rp2File.async('string')])
@@ -144,9 +162,49 @@ export default function ResourcePackMerger() {
     }
   }
 
+  const FileUploadArea = ({ fileNumber, file, onDrop, onDragOver }: { fileNumber: number, file: File | null, onDrop: (event: React.DragEvent<HTMLDivElement>, fileNumber: number) => void, onDragOver: (event: React.DragEvent<HTMLDivElement>) => void }) => (
+    <div
+      className={`
+        border border-gray-300 rounded-md p-6 text-center cursor-pointer
+        transition-all duration-200 ease-in-out
+        hover:border-gray-400 hover:bg-gray-50
+      `}
+      onDrop={(e) => onDrop(e, fileNumber)}
+      onDragOver={onDragOver}
+      onClick={() => fileNumber === 1 ? fileInputRef1.current?.click() : fileInputRef2.current?.click()}
+    >
+      {file ? (
+        <p className="text-sm text-gray-600">{file.name}</p>
+      ) : (
+        <>
+          <Upload className="mx-auto h-12 w-12 text-gray-400" />
+          <p className="mt-2 text-sm text-gray-600">Drag and drop a resource pack here, or click to select</p>
+        </>
+      )}
+      <input
+        type="file"
+        accept=".zip,application/zip,application/x-zip-compressed"
+        className="hidden"
+        onChange={(e) => handleFileChange(e.target.files?.[0] || null, fileNumber)}
+        ref={fileNumber === 1 ? fileInputRef1 : fileInputRef2}
+      />
+    </div>
+  )
+
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-8">
-      <Card className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-[#e8f2ff] p-8">
+      <Card className="max-w-2xl mx-auto bg-white shadow-lg relative">
+        <div className="absolute top-4 right-4">
+          <a
+            href="https://github.com/naimur0w0/MCResourcePackMerger"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-600 hover:text-gray-900 transition-colors"
+            aria-label="View source on GitHub"
+          >
+            <Github className="w-6 h-6" />
+          </a>
+        </div>
         <CardHeader>
           <CardTitle className="text-3xl font-bold">Resource Pack Merger</CardTitle>
           <CardDescription>Select and merge your Minecraft resource packs</CardDescription>
@@ -154,31 +212,19 @@ export default function ResourcePackMerger() {
         <CardContent className="space-y-6">
           <div className="space-y-4">
             <div>
-              <label htmlFor="rp1" className="block text-sm font-medium mb-1">Resource Pack 1</label>
-              <Input
-                id="rp1"
-                type="file"
-                accept=".zip"
-                onChange={(e) => handleFileChange(e, 1)}
-                className="cursor-pointer"
-              />
+              <label className="block text-sm font-medium mb-1 text-gray-700">Resource Pack 1</label>
+              <FileUploadArea fileNumber={1} file={file1} onDrop={onDrop} onDragOver={onDragOver} />
             </div>
             <div>
-              <label htmlFor="rp2" className="block text-sm font-medium mb-1">Resource Pack 2</label>
-              <Input
-                id="rp2"
-                type="file"
-                accept=".zip"
-                onChange={(e) => handleFileChange(e, 2)}
-                className="cursor-pointer"
-              />
+              <label className="block text-sm font-medium mb-1 text-gray-700">Resource Pack 2</label>
+              <FileUploadArea fileNumber={2} file={file2} onDrop={onDrop} onDragOver={onDragOver} />
             </div>
           </div>
 
           <Button 
             onClick={handleMerge} 
             disabled={!file1 || !file2 || merging}
-            className="w-full"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
           >
             {merging ? (
               <>
@@ -196,21 +242,21 @@ export default function ResourcePackMerger() {
           {progress > 0 && (
             <div className="space-y-2">
               <Progress value={progress} className="w-full" />
-              <p className="text-sm text-center">{progress.toFixed(2)}% Complete</p>
+              <p className="text-sm text-center text-gray-600">{progress.toFixed(2)}% Complete</p>
             </div>
           )}
 
           <div className="mt-4">
-            <h3 className="text-lg font-semibold mb-2">Log</h3>
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-md p-4 h-40 overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-2 text-gray-700">Log</h3>
+            <div className="bg-gray-100 rounded-md p-4 h-40 overflow-y-auto">
               {log.map((entry, index) => (
-                <p key={index} className="text-sm">{entry}</p>
+                <p key={index} className="text-sm text-gray-600">{entry}</p>
               ))}
             </div>
           </div>
 
           {!merging && mergedZipRef.current && (
-            <Button className="w-full" onClick={handleDownload}>
+            <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={handleDownload}>
               <Download className="mr-2 h-4 w-4" />
               Download Merged Pack
             </Button>
