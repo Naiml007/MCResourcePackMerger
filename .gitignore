@@ -39,8 +39,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-
 # my files
 todo.txt
 /copy
 bun.lockb
+ResourcePackMerger.txt
